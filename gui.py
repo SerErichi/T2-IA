@@ -196,7 +196,7 @@ class TicTacToeGUI:
             if move is not None:
                 self.game.make_move(move, 2)
         elif mode == "human_vs_nn":
-            output = self.nn.predict(self.game.board)
+            output = self.nn.predict(self.game.board, player=2)
             available_moves = self.game.get_available_moves()
             
             if available_moves:

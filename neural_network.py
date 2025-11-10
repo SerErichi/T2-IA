@@ -103,22 +103,22 @@ class NeuralNetwork:
         
         return self.output.flatten()
     
-    def predict(self, board):
+    def predict(self, board, player=1):
         """
-        Faz uma predição para o tabuleiro atual
+        Faz uma predição para o tabuleiro atual a partir da perspectiva do jogador informado
         
         Args:
             board: Tabuleiro do jogo (lista ou array)
+            player: Jogador que utilizará a rede (1 ou 2)
             
         Returns:
-            Índice da melhor jogada
+            Scores para cada jogada possível
         """
-        # Normaliza o tabuleiro: 0 -> 0, 1 (X) -> 1, 2 (O) -> -1
-        board_normalized = np.array(board, dtype=float)
-        board_normalized[board_normalized == 2] = -1
-        
-        # Propagação forward
+        board_array = np.array(board, dtype=int)
+        board_normalized = np.zeros_like(board_array, dtype=float)
+        board_normalized[board_array == player] = 1.0
+        board_normalized[board_array == 0] = 0.0
+        board_normalized[(board_array != 0) & (board_array != player)] = -1.0
+
         output = self.forward(board_normalized)
-        
-        # Retorna o índice com maior valor
         return output

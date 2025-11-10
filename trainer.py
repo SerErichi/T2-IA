@@ -159,13 +159,12 @@ def test_network_accuracy(weights, num_games=100, verbose=True):
             current_player = game.current_player
             
             if current_player == nn_player:
-                output = nn.predict(game.board)
+                output = nn.predict(game.board, player=nn_player)
                 available_moves = game.get_available_moves()
                 
                 if not available_moves:
                     break
                 
-                # Seleciona melhor jogada disponível
                 masked_output = np.full(9, float('-inf'))
                 for move in available_moves:
                     masked_output[move] = output[move]
