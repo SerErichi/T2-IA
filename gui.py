@@ -27,6 +27,9 @@ class TicTacToeGUI:
         
         # Modo de jogo
         self.game_mode = tk.StringVar(value="human_vs_minimax")
+        self.nn_first_player_var = tk.StringVar(value="human")
+        self.human_player = 1
+        self.ai_player = 2
         
         # Botões do tabuleiro
         self.buttons = []
@@ -64,9 +67,20 @@ class TicTacToeGUI:
                                 value=mode, command=self.on_mode_change)
             rb.grid(row=i, column=0, sticky=tk.W, pady=2)
         
+        # Opções específicas da rede neural
+        self.nn_options_frame = ttk.LabelFrame(left_frame, text="Quem começa (Rede Neural)", padding="10")
+        self.nn_options_frame.grid(row=2, column=0, columnspan=3, pady=5, sticky=(tk.W, tk.E))
+        self.nn_options_frame.grid_remove()
+        ttk.Radiobutton(self.nn_options_frame, text="Humano começa (X)",
+                        variable=self.nn_first_player_var, value="human",
+                        command=self.update_nn_first_player).grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Radiobutton(self.nn_options_frame, text="Rede Neural começa (X)",
+                        variable=self.nn_first_player_var, value="nn",
+                        command=self.update_nn_first_player).grid(row=1, column=0, sticky=tk.W, pady=2)
+        
         # Tabuleiro
         board_frame = ttk.Frame(left_frame)
-        board_frame.grid(row=2, column=0, columnspan=3, pady=20)
+        board_frame.grid(row=3, column=0, columnspan=3, pady=20)
         
         for i in range(9):
             btn = tk.Button(board_frame, text="", font=('Arial', 24, 'bold'),
@@ -76,7 +90,7 @@ class TicTacToeGUI:
         
         # Botões de controle
         control_frame = ttk.Frame(left_frame)
-        control_frame.grid(row=3, column=0, columnspan=3, pady=10)
+        control_frame.grid(row=4, column=0, columnspan=3, pady=10)
         
         self.new_game_btn = ttk.Button(control_frame, text="Novo Jogo", 
                                        command=self.new_game)
@@ -85,7 +99,7 @@ class TicTacToeGUI:
         # Status
         self.status_label = ttk.Label(left_frame, text="Selecione um modo de jogo", 
                                      font=('Arial', 12))
-        self.status_label.grid(row=4, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=5, column=0, columnspan=3, pady=10)
         
         # Coluna direita - Treinamento e logs
         right_frame = ttk.Frame(main_frame)
@@ -136,13 +150,34 @@ class TicTacToeGUI:
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(0, weight=1)
         right_frame.rowconfigure(1, weight=1)
+
+        # Carrega pesos salvos automaticamente, se existirem
+        self.load_saved_weights()
+
+    def load_saved_weights(self):
+        """Carrega automaticamente os pesos salvos, se o arquivo existir."""
+        weights_path = 'best_weights.npy'
+        if os.path.exists(weights_path):
+            try:
+                weights = np.load(weights_path)
+                self.nn.set_weights(weights)
+                self.trained_weights = weights
+                self.test_btn.config(state=tk.NORMAL)
+                self.log(f"Pesos carregados automaticamente de {weights_path}\n")
+            except Exception as exc:
+                messagebox.showwarning(
+                    "Aviso",
+                    f"Não foi possível carregar os pesos salvos ({weights_path}): {exc}"
+                )
         
     def on_mode_change(self):
         """Callback quando o modo de jogo muda"""
         mode = self.game_mode.get()
         
         if mode == "human_vs_minimax":
-            self.status_label.config(text="Você é X - Clique em uma célula para jogar")
+            self.nn_options_frame.grid_remove()
+            self.human_player = 1
+            self.ai_player = 2
             self.new_game()
         elif mode == "human_vs_nn":
             if self.trained_weights is None:
@@ -150,23 +185,35 @@ class TicTacToeGUI:
                     "Rede neural não treinada! Treine a rede primeiro.")
                 self.game_mode.set("human_vs_minimax")
             else:
-                self.status_label.config(text="Você é X - Jogue contra a Rede Neural")
+                self.nn_options_frame.grid()
+                self.apply_nn_first_player()
                 self.new_game()
         elif mode == "train_nn":
             self.status_label.config(text="Modo de Treinamento - Configure e inicie")
+            self.nn_options_frame.grid_remove()
             self.disable_board()
     
     def new_game(self):
         """Inicia um novo jogo"""
         self.game.reset()
         self.update_board()
-        self.enable_board()
+        self.disable_board()
         
         mode = self.game_mode.get()
         if mode == "human_vs_minimax":
+            self.human_player = 1
+            self.ai_player = 2
             self.status_label.config(text="Seu turno (X)")
+            self.enable_board()
         elif mode == "human_vs_nn":
-            self.status_label.config(text="Seu turno (X)")
+            # Garante que os jogadores estejam configurados de acordo com a escolha
+            self.apply_nn_first_player()
+            if self.human_player == self.game.current_player:
+                self.status_label.config(text=f"Seu turno ({self.player_symbol(self.human_player)})")
+                self.enable_board()
+            else:
+                self.status_label.config(text=f"Rede jogando ({self.player_symbol(self.ai_player)})")
+                self.root.after(500, self.ai_move)
     
     def on_cell_click(self, position):
         """Callback quando uma célula é clicada"""
@@ -174,10 +221,12 @@ class TicTacToeGUI:
         
         if mode == "train_nn":
             return
+        if self.game.current_player != self.human_player:
+            return
         
         # Jogada do humano
         if self.game.board[position] == 0:
-            self.game.make_move(position, 1)  # Humano é sempre X (1)
+            self.game.make_move(position, self.human_player)
             self.update_board()
             
             if self.game.is_game_over():
@@ -185,18 +234,24 @@ class TicTacToeGUI:
                 return
             
             # Jogada da IA
+            self.disable_board()
+            self.status_label.config(text=f"Rede jogando ({self.player_symbol(self.ai_player)})")
             self.root.after(500, self.ai_move)
     
     def ai_move(self):
         """Realiza a jogada da IA"""
         mode = self.game_mode.get()
+        if self.game.current_player != self.ai_player:
+            return
+        
+        self.disable_board()
         
         if mode == "human_vs_minimax":
-            move = self.minimax.get_best_move(self.game, 2)
+            move = self.minimax.get_best_move(self.game, self.ai_player)
             if move is not None:
-                self.game.make_move(move, 2)
+                self.game.make_move(move, self.ai_player)
         elif mode == "human_vs_nn":
-            output = self.nn.predict(self.game.board)
+            output = self.nn.predict(self.game.board, player=self.ai_player)
             available_moves = self.game.get_available_moves()
             
             if available_moves:
@@ -206,30 +261,51 @@ class TicTacToeGUI:
                 move = np.argmax(masked_output)
                 
                 if move in available_moves:
-                    self.game.make_move(move, 2)
+                    self.game.make_move(move, self.ai_player)
         
         self.update_board()
         
         if self.game.is_game_over():
             self.handle_game_over()
         else:
-            self.status_label.config(text="Seu turno (X)")
+            if self.game.current_player == self.human_player:
+                self.status_label.config(text=f"Seu turno ({self.player_symbol(self.human_player)})")
+                self.enable_board()
     
     def handle_game_over(self):
         """Trata o fim do jogo"""
         winner = self.game.check_winner()
         
-        if winner == 1:
-            self.status_label.config(text="Você venceu! (X)")
+        if winner == self.human_player:
+            self.status_label.config(text=f"Você venceu! ({self.player_symbol(self.human_player)})")
             messagebox.showinfo("Fim de Jogo", "Você venceu!")
-        elif winner == 2:
-            self.status_label.config(text="IA venceu! (O)")
+        elif winner == self.ai_player:
+            self.status_label.config(text=f"IA venceu! ({self.player_symbol(self.ai_player)})")
             messagebox.showinfo("Fim de Jogo", "A IA venceu!")
         elif winner == -1:
             self.status_label.config(text="Empate!")
             messagebox.showinfo("Fim de Jogo", "Empate!")
         
         self.disable_board()
+
+    def player_symbol(self, player):
+        """Retorna o símbolo associado ao jogador."""
+        return "X" if player == 1 else "O"
+
+    def apply_nn_first_player(self):
+        """Atualiza os jogadores conforme a seleção do usuário na GUI."""
+        if self.nn_first_player_var.get() == "human":
+            self.human_player = 1
+            self.ai_player = 2
+        else:
+            self.human_player = 2
+            self.ai_player = 1
+
+    def update_nn_first_player(self):
+        """Callback dos botões de rádio de quem começa."""
+        self.apply_nn_first_player()
+        if self.game_mode.get() == "human_vs_nn" and self.trained_weights is not None:
+            self.new_game()
     
     def update_board(self):
         """Atualiza a exibição do tabuleiro"""

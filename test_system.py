@@ -19,7 +19,7 @@ def test_neural_network():
     
     # Testa forward
     board = [0, 1, 2, 0, 1, 0, 0, 0, 2]
-    output = nn.predict(board)
+    output = nn.predict(board, player=1)
     assert len(output) == 9, "Output deve ter 9 valores"
     
     print("✓ Rede Neural OK")
@@ -135,7 +135,7 @@ def test_integration():
     while not game.is_game_over() and moves_count < max_moves:
         if game.current_player == 1:
             # NN joga
-            output = nn.predict(game.board)
+            output = nn.predict(game.board, player=1)
             available = game.get_available_moves()
             
             if available:

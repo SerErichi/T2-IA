@@ -82,7 +82,7 @@ def play_mode(args):
                 move = minimax.get_best_move(game, 2)
                 print(f"\nMinimax jogou na posição: {move}")
             else:  # nn
-                output = nn.predict(game.board)
+                output = nn.predict(game.board, player=2)
                 available_moves = game.get_available_moves()
                 
                 masked_output = np.full(9, float('-inf'))

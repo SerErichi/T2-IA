@@ -84,7 +84,7 @@ class GeneticAlgorithm:
                 
                 if current_player == nn_player:
                     # Turno da rede neural
-                    output = nn.predict(game.board)
+                    output = nn.predict(game.board, player=nn_player)
                     
                     # Máscara para células disponíveis
                     available_moves = game.get_available_moves()
